@@ -3,6 +3,8 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 
 [meso-cacase/difff](https://github.com/meso-cacase/difff) (Perl/CGI製テキスト比較ツール) を、依存ライブラリなしの単一HTMLファイルに移植したものです。差分計算はすべてブラウザ内で実行されるため、入力テキストは一切外部に送信されません。
 
+difff.jpが停止中で利用できない状況でも、ブラウザ一つで同等の比較ができるよう移植しました。
+
 **公開版: https://tools.nakaix.com/difff-js/**
 
 
