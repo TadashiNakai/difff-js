@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ja" id="htmlRoot">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">difff《ﾃﾞｭﾌﾌ》JS版</title>
+<style>
+* { font-family: verdana, arial, helvetica, sans-serif; }
+body { margin: 8px; }
+p, table, textarea, ul { font-size: 10pt; }
+textarea { width: 100%; box-sizing: border-box; font-family: monospace, monospace; }
+a { color: #3366CC; }
+.k { color: black; text-decoration: none; }
+em { font-style: normal; }
+em, .blue { font-weight: bold; color: black; background: #99EEFF; border: 1px solid #00BBFF; }
+.green { font-weight: bold; color: black; background: #99FF99; border: none; }
+.black { font-weight: bold; color: white; background: black; border: none; }
+table.result {
+    width: 95%;
+    margin: 20px auto;
+    table-layout: fixed;
+    word-wrap: break-word;
+    border-collapse: collapse;
+}
+table.result td {
+    padding: 4px 15px;
+    border-left: solid 1px silver;
+    border-right: solid 1px silver;
+    vertical-align: top;
+    width: 50%;
+}
+table.input { width: 100%; border-collapse: collapse; }
+table.input td { padding: 0 4px; }
+.n { border: none; }
+.gray { color: gray; }
+#top {
+    border-top: 5px solid #00BBFF;
+    padding-top: 10px;
+}
+#top .title { font-size: 1.5em; }
+#top .ver { font-size: 0.9em; color: gray; }
+#top .meta { font-size: 0.75em; vertical-align: 4px; margin-left: 1em; }
+#top .meta a { color: #3366CC; }
+.controls { padding: 10px 20px; }
+button, input[type=button], input[type=submit] {
+    font: inherit;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+#news ul { line-height: 1.7; }
+#footer { color: gray; font-size: 9pt; margin-top: 30px; }
+.err { color: red; padding: 10px 20px; }
+</style>
+</head>
+<body>
+
+<div id="top">
+    <span class="title"><a class="k" href="./" id="titleLink">テキスト比較ツール difff《ﾃﾞｭﾌﾌ》</a></span>
+    <span class="ver" id="verText">ver.6.1 (JS版)</span>
+    <span class="meta" id="langSwitch"></span>
+    <span class="meta"><a href="https://difff.jp/v5/" target="_blank" rel="noopener" id="prevVerLink">旧バージョン (ver.5)</a></span>
+</div>
+<hr>
+
+<div id="form">
+<p id="instructionText">下の枠に比較したい文章を入れてくだちい。差分 (diff) を表示します。</p>
+<table class="input" cellspacing="0">
+<tr>
+    <td class="n"><textarea id="sequenceA" rows="20"></textarea></td>
+    <td class="n"><textarea id="sequenceB" rows="20"></textarea></td>
+</tr>
+</table>
+<p><input type="button" id="compareBtn" value="比較する"></p>
+</div>
+
+<div id="result"></div>
+
+<div id="news">
+    <p id="newsTitle">新着情報：</p>
+    <ul id="newsList"></ul>
+</div>
+
+<div id="footer">
+<hr>
+<p id="footerContent"></p>
+</div>
+
+<script>
+'use strict';
+
+/*
+ * Copyright (c) 2004-2026 Yuki Naito
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holder nor the names of its contributors
+ * may be used to endorse or promote products derived from this software
+ * without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+// =========================================================================
+// 0) 多言語リソース
+// =========================================================================
+
+const SAMPLE_JA_A = `下記の文章を比較してください。
+   Betty Botter bought some butter, 
+But, she said, this butter's bitter;
+If I put it in my batter,
+It will make my batter bitter,
+But a bit of better butter
+Will make my batter better.
+So she bought a bit of butter
+Better than her bitter butter,
+And she put it in her batter,
+And it made her batter better,
+So 'twas better Betty Botter
+Bought a bit of better butter.`;
+
+const SAMPLE_JA_B = `下記の文章を，ﾋﾋ較してくだちい．
+Betty Botter bought some butter,
+But, she said, the butter's bitter;
+If I put it in my batter,
+That will make my batter bitter.
+But a bit of better butter, 
+That will make my batter better.
+So she bought a bit of butter
+Better than her bitter butter.
+And she put it in her batter,
+And it made her batter better.
+So it was better Betty Botter
+Bought a bit of better butter.`;
+
+const SAMPLE_EN_A = `Compare the following texts:
+   Betty Botter bought some butter, 
+But, she said, this butter's bitter;
+If I put it in my batter,
+It will make my batter bitter,
+But a bit of better butter
+Will make my batter better.
+So she bought a bit of butter
+Better than her bitter butter,
+And she put it in her batter,
+And it made her batter better,
+So 'twas better Betty Botter
+Bought a bit of better butter.`;
+
+const SAMPLE_EN_B = `Compaer the followin texts.
+Betty Botter bought some butter,
+But, she said, the butter's bitter;
+If I put it in my batter,
+That will make my batter bitter.
+But a bit of better butter, 
+That will make my batter better.
+So she bought a bit of butter
+Better than her bitter butter.
+And she put it in her batter,
+And it made her batter better.
+So it was better Betty Botter
+Bought a bit of better butter.`;
+
+const I18N = {
+    ja: {
+        pageTitle: 'difff《ﾃﾞｭﾌﾌ》JS版',
+        title: 'テキスト比較ツール difff《ﾃﾞｭﾌﾌ》',
+        ver: 'ver.6.1 (JS版)',
+        prevVer: '旧バージョン (ver.5)',
+        instruction: '下の枠に比較したい文章を入れてくだちい。差分 (diff) を表示します。',
+        compareBtn: '比較する',
+        hideBtn: '結果のみ表示 (印刷用)',
+        showBtn: '全体を表示',
+        color1: 'カラー1',
+        color2: 'カラー2',
+        color3: 'モノクロ',
+        saveBtn: 'HTMLファイルとして保存',
+        countLabels: {
+            chars: '文字数',
+            spaces: '空白数',
+            charsWithSpaces: '空白込み文字数',
+            newlines: '改行数',
+            charsWithNewlines: '改行込み文字数',
+            words: '単語数'
+        },
+        errTooLargeFmt: (a, b, max) =>
+            `入力が大きすぎます。<br>現在: A=${a} / B=${b} トークン<br>` +
+            `処理可能な上限: 片側 ${max} トークン<br>` +
+            `（巨大な文書には <a href="https://tools.nakaix.com/rifff/" target="_blank" rel="noopener">rifff</a> など他のツールをご検討ください）`,
+        newsTitle: '新着情報：',
+        news: [
+            '2017-08-07 HTTPSによる暗号化通信に対応 - <a href="https://difff.jp/">https://difff.jp/</a>',
+            '2015-06-17 ﾃﾞｭﾌﾌの結果を公開する機能を追加 (ver.6.1) - <a target="_blank" rel="noopener" href="http://data.dbcls.jp/~meso/meme/archives/2957">説明</a>',
+            '2014-03-14 トップページURLを <a href="http://difff.jp/">http://difff.jp/</a> に変更',
+            '2014-03-12 ITmediaニュース - <a target="_blank" rel="noopener" href="http://www.itmedia.co.jp/news/articles/1403/12/news121.html">STAP細胞問題で活躍、テキスト比較ツール「デュフフ」とは</a>',
+            '2013-12-12 使い方の動画 - <a target="_blank" rel="noopener" href="http://togotv.dbcls.jp/20130828.html">difff《ﾃﾞｭﾌﾌ》を使って文章の変更箇所を調べる</a>',
+            '2013-03-12 全面リニューアル (ver.6) - <a target="_blank" rel="noopener" href="http://data.dbcls.jp/~meso/meme/archives/2313">変更点</a>',
+            '2013-01-11 <a href="#" data-action="lang-en">英語版</a> を公開',
+            '2012-10-22 ソースを公開 - <a target="_blank" rel="noopener" href="https://github.com/meso-cacase/difff">GitHub</a>',
+            '2012-04-16 GIGAZINE - <a target="_blank" rel="noopener" href="http://gigazine.net/news/20120416-difff/">日本語対応で簡単に差分が確認できるテキスト比較ツール「difff(ﾃﾞｭﾌﾌ)」</a>',
+            '2012-04-13 全面リニューアル。左右で段落がずれないようにした (ver.5)',
+            '2008-02-18 日本語対応 (ver.4)',
+            '2004-02-19 初代 difff 完成 (ver.1)'
+        ],
+        sampleA: SAMPLE_JA_A,
+        sampleB: SAMPLE_JA_B,
+        footerHTML: () =>
+            'オリジナル: <a href="https://github.com/meso-cacase/difff" target="_blank" rel="noopener">difff《ﾃﾞｭﾌﾌ》</a> © ' +
+            '<a href="https://twitter.com/meso_cacase" target="_blank" rel="noopener">@meso_cacase</a> (modified BSD license)<br>' +
+            'JS版作成: <a href="https://x.com/TadashiNakai" target="_blank" rel="noopener">@TadashiNakai</a> — JS版固有の不具合はオリジナル作者とは無関係です<br>' +
+            '差分計算はすべてブラウザ内で実行され、入力テキストは外部に送信されません。'
+    },
+    en: {
+        pageTitle: 'difff - online text compare (JS port)',
+        title: 'difff《ﾃﾞｭﾌﾌ》',
+        ver: 'ver.6.1 (JS port)',
+        prevVer: 'Previous release (ver.5)',
+        instruction: "Input two texts below and click 'compare':",
+        compareBtn: 'compare',
+        hideBtn: 'Result only (for print)',
+        showBtn: 'Show all',
+        color1: 'color 1',
+        color2: 'color 2',
+        color3: 'monochrome',
+        saveBtn: 'Save as HTML',
+        countLabels: {
+            chars: 'Characters',
+            spaces: 'Spaces',
+            charsWithSpaces: 'Characters incl. spaces',
+            newlines: 'Newlines',
+            charsWithNewlines: 'Characters incl. newlines',
+            words: 'Words'
+        },
+        errTooLargeFmt: (a, b, max) =>
+            `Input is too large.<br>Current: A=${a} / B=${b} tokens<br>` +
+            `Maximum per side: ${max} tokens<br>` +
+            `(For very large documents, consider other tools such as <a href="https://tools.nakaix.com/rifff/" target="_blank" rel="noopener">rifff</a>.)`,
+        newsTitle: "What's new:",
+        news: [
+            '2017-08-07 HTTPS encrypted connections supported - <a href="https://difff.jp/en/">https://difff.jp/en/</a>',
+            '2015-06-17 difff adds option to create public links for sharing your result. (ver.6.1)',
+            '2014-03-14 URL has been changed: <a href="http://difff.jp/">http://difff.jp/</a>',
+            '2014-03-12 difff was introduced by <a target="_blank" rel="noopener" href="http://www.itmedia.co.jp/news/articles/1403/12/news121.html">ITmedia news</a> (in Japanese).',
+            '2013-12-12 difff was introduced by <a target="_blank" rel="noopener" href="http://togotv.dbcls.jp/20130828.html">TogoTV</a> (in Japanese).',
+            '2013-03-12 difff ver.6 released. <a target="_blank" rel="noopener" href="http://data.dbcls.jp/~meso/meme/archives/2313">Release note</a> (in Japanese).',
+            '2013-01-11 English page launched.',
+            '2012-10-22 Source code available via <a target="_blank" rel="noopener" href="https://github.com/meso-cacase/difff">GitHub</a>.',
+            '2012-04-16 difff was introduced by <a target="_blank" rel="noopener" href="http://gigazine.net/news/20120416-difff/">GIGAZINE</a> (in Japanese).',
+            '2012-04-13 difff ver.5 released.',
+            '2008-02-18 difff ver.4 released. Japanese characters supported.',
+            '2004-02-19 difff ver.1 released.'
+        ],
+        sampleA: SAMPLE_EN_A,
+        sampleB: SAMPLE_EN_B,
+        footerHTML: () =>
+            'Original: <a href="https://github.com/meso-cacase/difff" target="_blank" rel="noopener">difff《ﾃﾞｭﾌﾌ》</a> © ' +
+            '<a href="https://twitter.com/meso_cacase" target="_blank" rel="noopener">@meso_cacase</a> (modified BSD license)<br>' +
+            'JS port by <a href="https://x.com/TadashiNakai" target="_blank" rel="noopener">@TadashiNakai</a> — bugs in this JS port are unrelated to the original author<br>' +
+            'All diff computation runs locally in your browser; no text is sent externally.'
+    }
+};
+
+let currentLang = 'ja';
+let lastInputs = null; // {A, B} cached for re-render on lang change
+
+// =========================================================================
+// 1) テキスト処理ユーティリティ
+// =========================================================================
+
+function escapeChar(s) {
+    return s.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/'/g, '&#39;')
+            .replace(/"/g, '&quot;');
+}
+
+function splitText(text) {
+    text = text.replace(/\r/g, '');
+    text = text.replace(/\n/g, '<$>');
+    const tokens = [];
+    const re = /[a-z]+|<\$>|&#?\w+;|[\s\S]/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        tokens.push(m[0]);
+    }
+    return tokens;
+}
+
+function visibleTrailingSpaces(html) {
+    return html.replace(/( +)<\/em>/g, (_, sp) => sp.replace(/ /g, '&nbsp;') + '</em>');
+}
+
+function countChar(text) {
+    const wcount = (text.match(/\S+/g) || []).length;
+    let t = text.replace(/\r/g, '');
+    const count3 = Array.from(t).length;
+    t = t.replace(/\n/g, '');
+    const count2 = Array.from(t).length;
+    t = t.replace(/\s/g, '');
+    const count1 = Array.from(t).length;
+    return [count1, count2, count3, wcount];
+}
+
+// =========================================================================
+// 2) 差分計算（LCSベース）
+// =========================================================================
+
+function diffTokens(a, b) {
+    const n = a.length, m = b.length;
+    if (n === 0) return b.map(t => ({ type: 'insert', token: t }));
+    if (m === 0) return a.map(t => ({ type: 'delete', token: t }));
+    const dp = new Array(n + 1);
+    dp[0] = new Uint32Array(m + 1);
+    for (let i = 1; i <= n; i++) {
+        const row = new Uint32Array(m + 1);
+        const prev = dp[i - 1];
+        for (let j = 1; j <= m; j++) {
+            if (a[i - 1] === b[j - 1]) row[j] = prev[j - 1] + 1;
+            else { const u = prev[j], l = row[j - 1]; row[j] = u > l ? u : l; }
+        }
+        dp[i] = row;
+    }
+    const ops = [];
+    let i = n, j = m;
+    while (i > 0 && j > 0) {
+        if (a[i - 1] === b[j - 1]) { ops.push({ type: 'keep', token: a[i - 1] }); i--; j--; }
+        else if (dp[i - 1][j] >= dp[i][j - 1]) { ops.push({ type: 'delete', token: a[i - 1] }); i--; }
+        else { ops.push({ type: 'insert', token: b[j - 1] }); j--; }
+    }
+    while (i > 0) { ops.push({ type: 'delete', token: a[i - 1] }); i--; }
+    while (j > 0) { ops.push({ type: 'insert', token: b[j - 1] }); j--; }
+    return ops.reverse();
+}
+
+function buildRows(ops) {
+    let aBuf = '', bBuf = '';
+    let inEmA = false, inEmB = false;
+    const rows = [];
+    const closeA = () => { if (inEmA) { aBuf += '</em>'; inEmA = false; } };
+    const closeB = () => { if (inEmB) { bBuf += '</em>'; inEmB = false; } };
+    for (const op of ops) {
+        const tok = op.token;
+        const isNL = (tok === '<$>');
+        if (op.type === 'keep') {
+            closeA(); closeB();
+            if (isNL) { rows.push([aBuf, bBuf]); aBuf = ''; bBuf = ''; }
+            else { aBuf += tok; bBuf += tok; }
+        } else if (op.type === 'delete') {
+            closeB();
+            if (isNL) { closeA(); rows.push([aBuf, bBuf]); aBuf = ''; bBuf = ''; }
+            else { if (!inEmA) { aBuf += '<em>'; inEmA = true; } aBuf += tok; }
+        } else {
+            closeA();
+            if (isNL) { closeB(); rows.push([aBuf, bBuf]); aBuf = ''; bBuf = ''; }
+            else { if (!inEmB) { bBuf += '<em>'; inEmB = true; } bBuf += tok; }
+        }
+    }
+    closeA(); closeB();
+    rows.push([aBuf, bBuf]);
+    for (let i = 0; i < rows.length; i++) {
+        rows[i][0] = visibleTrailingSpaces(rows[i][0]);
+        rows[i][1] = visibleTrailingSpaces(rows[i][1]);
+    }
+    return rows;
+}
+
+// =========================================================================
+// 3) 結果テーブルのレンダリング
+// =========================================================================
+
+const MAX_TOKENS = 5000;
+
+function renderResult(seqA, seqB) {
+    const t = I18N[currentLang];
+    const resultDiv = document.getElementById('result');
+    const newsDiv = document.getElementById('news');
+
+    // 入力されたら新着情報は隠す（オリジナルと同じ挙動）
+    newsDiv.style.display = 'none';
+
+    lastInputs = { A: seqA, B: seqB };
+
+    const tokensA = splitText(escapeChar(seqA));
+    const tokensB = splitText(escapeChar(seqB));
+
+    if (tokensA.length > MAX_TOKENS || tokensB.length > MAX_TOKENS) {
+        resultDiv.innerHTML = `<p class="err">${t.errTooLargeFmt(tokensA.length, tokensB.length, MAX_TOKENS)}</p>`;
+        return;
+    }
+
+    const ops = diffTokens(tokensA, tokensB);
+    const rows = buildRows(ops);
+
+    let html = '<table class="result" cellspacing="0"><tbody>';
+    for (const [a, b] of rows) {
+        html += `<tr><td>${a}</td><td>${b}</td></tr>`;
+    }
+
+    const [c1A, c2A, c3A, wcA] = countChar(seqA);
+    const [c1B, c2B, c3B, wcB] = countChar(seqB);
+    const cl = t.countLabels;
+    const fmtCounts = (c1, c2, c3, wc) =>
+        `${cl.chars}: ${c1}<br>` +
+        `${cl.spaces}: ${c2 - c1}　${cl.charsWithSpaces}: ${c2}<br>` +
+        `${cl.newlines}: ${c3 - c2}　${cl.charsWithNewlines}: ${c3}<br>` +
+        `${cl.words}: ${wc}`;
+    html += `<tr>
+        <td><span class="gray">${fmtCounts(c1A, c2A, c3A, wcA)}</span></td>
+        <td><span class="gray">${fmtCounts(c1B, c2B, c3B, wcB)}</span></td>
+    </tr></tbody></table>`;
+
+    html += `
+    <p class="controls">
+        <input type="button" id="hideBtn" value="${t.hideBtn}">
+        |
+        <input type="radio" name="color" value="1" checked id="color1"><label for="color1"><span class="blue">${t.color1}</span></label>
+        <input type="radio" name="color" value="2" id="color2"><label for="color2"><span class="green">${t.color2}</span></label>
+        <input type="radio" name="color" value="3" id="color3"><label for="color3"><span class="black">${t.color3}</span></label>
+        |
+        <input type="button" id="saveBtn" value="${t.saveBtn}">
+    </p>`;
+
+    resultDiv.innerHTML = html;
+    attachResultHandlers();
+}
+
+function attachResultHandlers() {
+    const hideBtn = document.getElementById('hideBtn');
+    if (hideBtn) hideBtn.onclick = toggleForm;
+    const c1 = document.getElementById('color1');
+    const c2 = document.getElementById('color2');
+    const c3 = document.getElementById('color3');
+    if (c1) c1.onclick = () => setColor('blue');
+    if (c2) c2.onclick = () => setColor('green');
+    if (c3) c3.onclick = () => setColor('black');
+    const sb = document.getElementById('saveBtn');
+    if (sb) sb.onclick = saveAsHtml;
+}
+
+function setColor(cls) {
+    const colorMap = { blue: '#00BBFF', green: '#00bb00', black: 'black' };
+    document.getElementById('top').style.borderTop = `5px solid ${colorMap[cls]}`;
+    document.querySelectorAll('em').forEach(el => { el.className = cls; });
+}
+
+function toggleForm() {
+    const t = I18N[currentLang];
+    const ids = ['top', 'form', 'news', 'footer'];
+    const btn = document.getElementById('hideBtn');
+    const isHidden = document.getElementById('top').style.display === 'none';
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !(id === 'news' && el.dataset.alreadyHidden === '1')) {
+            el.style.display = isHidden ? '' : 'none';
+        }
+    });
+    // newsは比較実行後にもともと隠れているので、印刷モード解除時にも隠したままにする
+    if (isHidden) {
+        const news = document.getElementById('news');
+        if (news && document.getElementById('result').innerHTML.trim()) {
+            news.style.display = 'none';
+        }
+    }
+    if (btn) btn.value = isHidden ? t.hideBtn : t.showBtn;
+}
+
+function saveAsHtml() {
+    const taA = document.getElementById('sequenceA');
+    const taB = document.getElementById('sequenceB');
+    taA.textContent = taA.value;
+    taB.textContent = taB.value;
+    ['color1', 'color2', 'color3'].forEach(id => {
+        const r = document.getElementById(id);
+        if (r) {
+            if (r.checked) r.setAttribute('checked', 'checked');
+            else r.removeAttribute('checked');
+        }
+    });
+    const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'difff_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// =========================================================================
+// 4) 言語切替
+// =========================================================================
+
+function setLang(lang) {
+    if (lang !== 'ja' && lang !== 'en') return;
+    const prevLang = currentLang;
+    currentLang = lang;
+    const t = I18N[lang];
+
+    document.getElementById('htmlRoot').setAttribute('lang', lang);
+    document.title = t.pageTitle;
+    document.getElementById('pageTitle').textContent = t.pageTitle;
+    document.getElementById('titleLink').textContent = t.title;
+    document.getElementById('verText').textContent = t.ver;
+    document.getElementById('prevVerLink').textContent = t.prevVer;
+    document.getElementById('instructionText').textContent = t.instruction;
+    document.getElementById('compareBtn').value = t.compareBtn;
+
+    // 言語切替リンク
+    const switchEl = document.getElementById('langSwitch');
+    if (lang === 'ja') {
+        switchEl.innerHTML = '<a href="#" data-action="lang-en">English</a> | Japanese';
+    } else {
+        switchEl.innerHTML = 'English | <a href="#" data-action="lang-ja">Japanese</a>';
+    }
+
+    // 新着情報リスト
+    renderNewsList();
+
+    // フッター
+    document.getElementById('footerContent').innerHTML = t.footerHTML();
+
+    // サンプルテキスト：旧言語のサンプルそのままだった場合のみ差し替え
+    const taA = document.getElementById('sequenceA');
+    const taB = document.getElementById('sequenceB');
+    const prev = I18N[prevLang];
+    if (taA.value === prev.sampleA && taB.value === prev.sampleB) {
+        taA.value = t.sampleA;
+        taB.value = t.sampleB;
+    }
+
+    // 結果が表示中の場合は再レンダリング（カウントラベル等を更新するため）
+    const resultDiv = document.getElementById('result');
+    if (resultDiv.innerHTML.trim() && lastInputs) {
+        renderResult(lastInputs.A, lastInputs.B);
+    }
+}
+
+function renderNewsList() {
+    const t = I18N[currentLang];
+    document.getElementById('newsTitle').textContent = t.newsTitle;
+    const ul = document.getElementById('newsList');
+    ul.innerHTML = t.news.map(item => `<li>${item}</li>`).join('');
+}
+
+// ニュース内の言語切替リンク等のイベント委譲
+document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-action]');
+    if (!a) return;
+    const action = a.getAttribute('data-action');
+    if (action === 'lang-en') { e.preventDefault(); setLang('en'); }
+    else if (action === 'lang-ja') { e.preventDefault(); setLang('ja'); }
+});
+
+// =========================================================================
+// 5) 初期化
+// =========================================================================
+
+window.addEventListener('DOMContentLoaded', () => {
+    // 保存ファイルから開いた場合、html lang属性で初期言語を判定
+    const htmlLang = document.getElementById('htmlRoot').getAttribute('lang');
+    currentLang = (htmlLang === 'en') ? 'en' : 'ja';
+
+    const taA = document.getElementById('sequenceA');
+    const taB = document.getElementById('sequenceB');
+
+    // 既に内容がある場合は上書きしない（保存ファイル復元用）
+    if (!taA.value.trim() && !taB.value.trim()) {
+        taA.value = I18N[currentLang].sampleA;
+        taB.value = I18N[currentLang].sampleB;
+    }
+
+    // UI言語を適用
+    setLang(currentLang);
+
+    document.getElementById('compareBtn').onclick = () => {
+        renderResult(taA.value, taB.value);
+    };
+
+    // 保存ファイル復元時：resultが既にあればハンドラ再アタッチ＋news非表示
+    const result = document.getElementById('result');
+    if (result.innerHTML.trim()) {
+        attachResultHandlers();
+        document.getElementById('news').style.display = 'none';
+    }
+});
+</script>
+
+</body>
+</html>
