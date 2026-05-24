@@ -186,9 +186,6 @@ const I18N = {
         prevVer: '旧バージョン (ver.5)',
         instruction: '下の枠に比較したい文章を入れてくだちい。差分 (diff) を表示します。',
         compareBtn: '比較する',
-        cancelBtn: '中断',
-        computing: '計算中...',
-        cancelled: '計算を中断しました。',
         hideBtn: '結果のみ表示 (印刷用)',
         showBtn: '全体を表示',
         color1: 'カラー1',
@@ -227,7 +224,7 @@ const I18N = {
         footerHTML: () =>
             'オリジナル: <a href="https://github.com/meso-cacase/difff" target="_blank" rel="noopener">difff《ﾃﾞｭﾌﾌ》</a> © ' +
             '<a href="https://twitter.com/meso_cacase" target="_blank" rel="noopener">@meso_cacase</a> (modified BSD license)<br>' +
-            'JS版作成: <a href="https://x.com/TadashiNakai" target="_blank" rel="noopener">@TadashiNakai</a> — <a href="https://github.com/TadashiNakai/difff-js" target="_blank" rel="noopener">JS版</a>固有の不具合はオリジナル作者とは無関係です<br>' +
+            'JS版作成: <a href="https://x.com/TadashiNakai" target="_blank" rel="noopener">@TadashiNakai</a> — JS版固有の不具合はオリジナル作者とは無関係です<br>' +
             '差分計算はすべてブラウザ内で実行され、入力テキストは外部に送信されません。'
     },
     en: {
@@ -237,9 +234,6 @@ const I18N = {
         prevVer: 'Previous release (ver.5)',
         instruction: "Input two texts below and click 'compare':",
         compareBtn: 'compare',
-        cancelBtn: 'cancel',
-        computing: 'Computing...',
-        cancelled: 'Computation cancelled.',
         hideBtn: 'Result only (for print)',
         showBtn: 'Show all',
         color1: 'color 1',
@@ -326,148 +320,34 @@ function countChar(text) {
 }
 
 // =========================================================================
-// 2) 差分計算（Myersアルゴリズム + cleanup後処理, diff -d相当）
+// 2) 差分計算（LCSベース）
 // =========================================================================
 
-// Myersのdiffアルゴリズム本体。
-// 各編集ステップでのV配列のスナップショットを保存し、後で経路復元を行う。
-// 戻り値は { type: 'keep' | 'delete' | 'insert', token } の配列。
 function diffTokens(a, b) {
     const n = a.length, m = b.length;
     if (n === 0) return b.map(t => ({ type: 'insert', token: t }));
     if (m === 0) return a.map(t => ({ type: 'delete', token: t }));
-
-    const max = n + m;
-    // V[k+max] = x（k = x - y の対角線上で到達可能な最大のx）
-    const v = new Int32Array(2 * max + 1);
-    const trace = []; // 各dステップごとのVのスナップショット
-
-    let foundD = -1;
-    outer:
-    for (let d = 0; d <= max; d++) {
-        // 現時点のVを保存（経路復元用）
-        trace.push(new Int32Array(v));
-
-        for (let k = -d; k <= d; k += 2) {
-            let x;
-            // greedy選択: 上から来る（insert）か左から来る（delete）か
-            if (k === -d || (k !== d && v[k - 1 + max] < v[k + 1 + max])) {
-                x = v[k + 1 + max]; // insertで来た（下に進んだ）
-            } else {
-                x = v[k - 1 + max] + 1; // deleteで来た（右に進んだ）
-            }
-            let y = x - k;
-            // snake: 一致する限り対角に進む
-            while (x < n && y < m && a[x] === b[y]) {
-                x++;
-                y++;
-            }
-            v[k + max] = x;
-            if (x >= n && y >= m) {
-                foundD = d;
-                break outer;
-            }
+    const dp = new Array(n + 1);
+    dp[0] = new Uint32Array(m + 1);
+    for (let i = 1; i <= n; i++) {
+        const row = new Uint32Array(m + 1);
+        const prev = dp[i - 1];
+        for (let j = 1; j <= m; j++) {
+            if (a[i - 1] === b[j - 1]) row[j] = prev[j - 1] + 1;
+            else { const u = prev[j], l = row[j - 1]; row[j] = u > l ? u : l; }
         }
+        dp[i] = row;
     }
-
-    // 経路復元: 終点(n,m)から始点(0,0)へ逆向きにたどる
     const ops = [];
-    let x = n, y = m;
-    for (let d = foundD; d > 0; d--) {
-        const vPrev = trace[d];
-        const k = x - y;
-        let prevK;
-        if (k === -d || (k !== d && vPrev[k - 1 + max] < vPrev[k + 1 + max])) {
-            prevK = k + 1; // insertで来た
-        } else {
-            prevK = k - 1; // deleteで来た
-        }
-        const prevX = vPrev[prevK + max];
-        const prevY = prevX - prevK;
-
-        // snake部分（対角の一致）をkeepとして記録
-        while (x > prevX && y > prevY) {
-            ops.push({ type: 'keep', token: a[x - 1] });
-            x--;
-            y--;
-        }
-        // 1ステップ分のedit
-        if (x === prevX) {
-            ops.push({ type: 'insert', token: b[y - 1] });
-            y--;
-        } else {
-            ops.push({ type: 'delete', token: a[x - 1] });
-            x--;
-        }
+    let i = n, j = m;
+    while (i > 0 && j > 0) {
+        if (a[i - 1] === b[j - 1]) { ops.push({ type: 'keep', token: a[i - 1] }); i--; j--; }
+        else if (dp[i - 1][j] >= dp[i][j - 1]) { ops.push({ type: 'delete', token: a[i - 1] }); i--; }
+        else { ops.push({ type: 'insert', token: b[j - 1] }); j--; }
     }
-    // d=0の残りのsnake（先頭の一致部分）
-    while (x > 0 && y > 0) {
-        ops.push({ type: 'keep', token: a[x - 1] });
-        x--;
-        y--;
-    }
-    while (x > 0) { ops.push({ type: 'delete', token: a[x - 1] }); x--; }
-    while (y > 0) { ops.push({ type: 'insert', token: b[y - 1] }); y--; }
-
-    ops.reverse();
-    return cleanupOps(ops);
-}
-
-// cleanup後処理（diff -d相当）。
-// Myersのgreedyな経路選択で生じる「無駄な往復」を整理する。
-// 連続するdelete/insertブロック内で、前方・後方の共通トークンをkeepに昇格する。
-function cleanupOps(ops) {
-    if (ops.length === 0) return ops;
-
-    const result = [];
-    let i = 0;
-    while (i < ops.length) {
-        if (ops[i].type === 'keep') {
-            result.push(ops[i]);
-            i++;
-            continue;
-        }
-        // 連続するdelete/insertブロックを集める
-        const dels = [];
-        const ins = [];
-        while (i < ops.length && ops[i].type !== 'keep') {
-            if (ops[i].type === 'delete') dels.push(ops[i].token);
-            else ins.push(ops[i].token);
-            i++;
-        }
-        // 前方マッチ: ブロック先頭で同じトークンが並ぶ部分をkeepに統合
-        let front = 0;
-        while (
-            front < dels.length &&
-            front < ins.length &&
-            dels[front] === ins[front]
-        ) {
-            result.push({ type: 'keep', token: dels[front] });
-            front++;
-        }
-        // 後方マッチ: ブロック末尾で同じトークンが並ぶ部分をkeepに統合
-        let back = 0;
-        while (
-            back < dels.length - front &&
-            back < ins.length - front &&
-            dels[dels.length - 1 - back] === ins[ins.length - 1 - back]
-        ) {
-            back++;
-        }
-        // 中間のdelete/insertを出力（delete先、insert後の順序を保つ）
-        for (let j = front; j < dels.length - back; j++) {
-            result.push({ type: 'delete', token: dels[j] });
-        }
-        for (let j = front; j < ins.length - back; j++) {
-            result.push({ type: 'insert', token: ins[j] });
-        }
-        // 後方マッチ分のkeepを出力
-        for (let j = ins.length - back; j < ins.length; j++) {
-            result.push({ type: 'keep', token: ins[j] });
-        }
-    }
-
-    return result;
+    while (i > 0) { ops.push({ type: 'delete', token: a[i - 1] }); i--; }
+    while (j > 0) { ops.push({ type: 'insert', token: b[j - 1] }); j--; }
+    return ops.reverse();
 }
 
 function buildRows(ops) {
@@ -506,69 +386,9 @@ function buildRows(ops) {
 // 3) 結果テーブルのレンダリング
 // =========================================================================
 
-const MAX_TOKENS = 40000;
+const MAX_TOKENS = 5000;
 
-// 現在実行中のWorker（中断用）。
-let activeWorker = null;
-
-// diffTokens/cleanupOpsをWorker内でも使えるようにBlob URL化する。
-// 関数本体を文字列化して、Worker側で同じ関数を再定義する。
-let workerBlobUrl = null;
-function getWorkerBlobUrl() {
-    if (workerBlobUrl) return workerBlobUrl;
-    const workerSource = `
-'use strict';
-${diffTokens.toString()}
-${cleanupOps.toString()}
-self.onmessage = function(e) {
-    try {
-        const ops = diffTokens(e.data.a, e.data.b);
-        self.postMessage({ ok: true, ops: ops });
-    } catch (err) {
-        self.postMessage({ ok: false, error: String(err) });
-    }
-};
-`;
-    const blob = new Blob([workerSource], { type: 'application/javascript' });
-    workerBlobUrl = URL.createObjectURL(blob);
-    return workerBlobUrl;
-}
-
-// Worker経由でdiff計算を行う。
-// 中断可能。返り値はPromise<ops>。中断された場合はrejectされる。
-function diffTokensAsync(tokensA, tokensB) {
-    return new Promise((resolve, reject) => {
-        const worker = new Worker(getWorkerBlobUrl());
-        activeWorker = worker;
-        worker.onmessage = (e) => {
-            activeWorker = null;
-            worker.terminate();
-            if (e.data.ok) resolve(e.data.ops);
-            else reject(new Error(e.data.error));
-        };
-        worker.onerror = (e) => {
-            activeWorker = null;
-            worker.terminate();
-            reject(new Error(e.message || 'worker error'));
-        };
-        worker.postMessage({ a: tokensA, b: tokensB });
-    });
-}
-
-function cancelDiff() {
-    if (activeWorker) {
-        activeWorker.terminate();
-        activeWorker = null;
-        return true;
-    }
-    return false;
-}
-
-// 「計算中...」表示のためのトークン。比較ボタンを押すたびにインクリメントし、
-// 古いPromiseが遅れて完了しても結果を捨てられるようにする。
-let currentRunToken = 0;
-
-async function renderResult(seqA, seqB) {
+function renderResult(seqA, seqB) {
     const t = I18N[currentLang];
     const resultDiv = document.getElementById('result');
     const newsDiv = document.getElementById('news');
@@ -586,37 +406,7 @@ async function renderResult(seqA, seqB) {
         return;
     }
 
-    // 前回の計算が走っていれば中断
-    cancelDiff();
-
-    // この実行のトークンを発行
-    const myToken = ++currentRunToken;
-
-    // 計算中表示（中断ボタン付き）
-    resultDiv.innerHTML = `<p class="controls">${t.computing} <input type="button" id="cancelBtn" value="${t.cancelBtn}"></p>`;
-    const cancelBtn = document.getElementById('cancelBtn');
-    if (cancelBtn) {
-        cancelBtn.onclick = () => {
-            if (cancelDiff()) {
-                if (myToken === currentRunToken) {
-                    resultDiv.innerHTML = `<p class="err">${t.cancelled}</p>`;
-                }
-            }
-        };
-    }
-
-    // Worker経由で計算
-    let ops;
-    try {
-        ops = await diffTokensAsync(tokensA, tokensB);
-    } catch (err) {
-        // 中断された場合はcancelBtnのハンドラ側で表示を更新しているので、ここでは何もしない
-        return;
-    }
-
-    // この間に別の比較が開始されていたら、結果は破棄
-    if (myToken !== currentRunToken) return;
-
+    const ops = diffTokens(tokensA, tokensB);
     const rows = buildRows(ops);
 
     let html = '<table class="result" cellspacing="0"><tbody>';

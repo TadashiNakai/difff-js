@@ -3,15 +3,13 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 
 [meso-cacase/difff](https://github.com/meso-cacase/difff) (Perl/CGI製テキスト比較ツール) を、依存ライブラリなしの単一HTMLファイルに移植したものです。差分計算はすべてブラウザ内で実行されるため、入力テキストは一切外部に送信されません。
 
-difff.jpが停止中で利用できない状況でも、ブラウザ一つで同等の比較ができるよう移植しました。
-
 **公開版: https://tools.nakaix.com/difff-js/**
 
 
 特徴
 ----
 
-- 単一HTMLファイル (約24KB)・依存ライブラリなし
+- 単一HTMLファイル・依存ライブラリなし
 - 差分計算はブラウザ内で完結（入力テキスト非送信）
 - オリジナル ver.6.1 とほぼ機能互換（後述の違いを除く）
 - 日本語 / English UI切替
@@ -27,6 +25,7 @@ difff.jpが停止中で利用できない状況でも、ブラウザ一つで同
 - 「結果のみ表示」印刷モード
 - HTMLファイルとして保存 — 保存ファイルはそのまま再編集可能なdifff-js
 - 日英バイリンガルUI
+- 計算中はWeb Workerで別スレッド実行（UIが固まらず、中断ボタンで停止可能）
 
 
 オリジナルとの違い
@@ -34,9 +33,9 @@ difff.jpが停止中で利用できない状況でも、ブラウザ一つで同
 
 | | オリジナル (Perl/CGI) | JS版 |
 |---|---|---|
-| 差分エンジン | `diff -d` コマンド | LCSベース実装（出力は実用上等価） |
+| 差分エンジン | `diff -d` コマンド | Myersアルゴリズム + cleanup後処理（`diff -d` 相当） |
 | 結果の保存 | サーバ保存・公開URL発行 | ローカルHTMLファイル保存 |
-| 入力上限 | 5MB | 片側5000トークン（LCSメモリ上の制約） |
+| 入力上限 | 5MB | 片側40000トークン |
 | 動作環境 | Perl/CGI/diff/FIFO | モダンブラウザ単体 |
 
 
@@ -52,8 +51,21 @@ difff.jpが停止中で利用できない状況でも、ブラウザ一つで同
 --------
 
 - トークン分割規則: オリジナル `split_text` と同一の正規表現 (`[a-z]+ | <$> | &#?\w+; | .`)
-- 差分アルゴリズム: LCSベース、O(N×M) 時間・空間
+- 差分アルゴリズム: Myers diffアルゴリズム + cleanup後処理（`diff -d` 相当）。計算量 O((N+M)D)・メモリ O(N+M)（D は編集距離）
+- 差分計算はWeb Worker内で実行。メインスレッドはブロックされず、計算中も中断可能
 - HTML/CSS/JavaScript すべて単一ファイル内に展開
+
+
+バージョン履歴
+--------------
+
+- **difff-js-0.02.html** (現行版・`index.html` と同内容)
+    - 差分エンジンを LCS から Myers + cleanup（`diff -d` 相当）に変更
+    - 入力上限を 5000 → 40000 トークンに拡張
+    - 差分計算を Web Worker 化し、計算中も UI が応答するように
+    - 計算中表示と中断ボタンを追加
+- **difff-js-0.01.html** (初版)
+    - LCS ベースの差分実装、片側 5000 トークン上限
 
 
 ライセンス
@@ -82,3 +94,5 @@ English summary
 - JS port: [@TadashiNakai](https://x.com/TadashiNakai)
 
 Just download `index.html` and open it in any modern browser. No installation, no server, no dependencies.
+
+The diff engine uses the Myers algorithm with `diff -d`-style cleanup, runs in a Web Worker so the UI stays responsive, and accepts up to 40000 tokens per side.
