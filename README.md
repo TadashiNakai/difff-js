@@ -33,8 +33,7 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 
 | | オリジナル (Perl/CGI) | JS版 |
 |---|---|---|
-| 差分エンジン | `diff -d` コマンド（行単位） | Myersアルゴリズム + cleanup後処理（`diff -d` 相当） |
-| 改行またぎの変更 | 行末・行頭に水色縦線で表示 | 同じ（v0.11で再現） |
+| 差分エンジン | `diff -d` コマンド（行単位） | GNU diffutils 由来のアルゴリズム（完全な diff -d） |
 | 結果の保存 | サーバ保存・公開URL発行 | ローカルHTMLファイル保存 |
 | 入力上限 | 5MB | 100000トークン超で確認ダイアログ |
 | 動作環境 | Perl/CGI/diff/FIFO | モダンブラウザ単体 |
@@ -52,7 +51,7 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 --------
 
 - トークン分割規則: オリジナル `split_text` と同一の正規表現 (`[a-z]+ | <$> | &#?\w+; | .`)
-- 差分アルゴリズム: Myers diff + cleanup後処理（`diff -d` 相当）。計算量 O((N+M)D)・メモリ O(N+M)（D は編集距離）
+- 差分アルゴリズム: GNU diffutils と同一のアルゴリズム（双方向Myers + shift_boundaries を移植）。完全な最小差分（diff -d）を保証
 - 改行をまたぐ変更: `delete [NL]` / `insert [NL]` の際に行末・行頭へ空emタグを挿入することで、オリジナルの水色縦線表示を再現
 - 差分計算はWeb Worker内で実行。メインスレッドはブロックされず、計算中も中断可能
 - HTML/CSS/JavaScript すべて単一ファイル内に展開
@@ -61,7 +60,10 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 バージョン履歴
 --------------
 
-- **difff-js-0.11.html** (現行版・`index.html` と同内容)
+- **difff-js-0.13.html** (現行版・`index.html` と同内容)
+    - 差分エンジンを独自の近似処理から、GNU diffutils のアルゴリズムの移植版（完全な `diff -d`）へ差し替え
+    - 差分結果のハイライト埋め込みロジックを本家 difff.pl と一致するよう改修
+- **difff-js-0.11.html**
     - 改行をまたぐ変更の行末・行頭に空emタグを挿入し、オリジナルの水色縦線表示を再現
     - Web Worker のソースに `absorbKeepsAcrossNewlines` を含めるよう修正（計算が終わらなくなるバグを修正）
     - Worker内エラー時のユーザー通知を追加
@@ -99,9 +101,15 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 ライセンス
 ----------
 
-modified BSD license（オリジナルから継承）
+本ツール全体は **GNU General Public License v3.0 (GPLv3)** またはそれ以降のバージョンの下で配布されます。
+内部には以下の異なるライセンスを持つコードが含まれています。
 
-- Original: Copyright &copy; 2004-2026 [@meso_cacase](https://twitter.com/meso_cacase)
+- **差分アルゴリズム部分 (GNU diffutils由来)**
+  - License: GNU General Public License v3.0 (GPLv3)
+  - Copyright (C) Free Software Foundation, Inc.
+- **UIおよびベースロジック (オリジナル difff《ﾃﾞｭﾌﾌ》由来)**
+  - License: modified BSD license
+  - Original: Copyright &copy; 2004-2026 [@meso_cacase](https://twitter.com/meso_cacase)
 - JS port: [@TadashiNakai](https://x.com/TadashiNakai)
 
 
@@ -118,9 +126,9 @@ English summary
 
 - Live: https://tools.nakaix.com/difff-js/
 - Original: [difff《ﾃﾞｭﾌﾌ》](https://difff.jp/) by [@meso_cacase](https://twitter.com/meso_cacase)
-- License: modified BSD (inherited from the original)
+- License: **GPLv3** (Core diff algorithm: GPLv3 / UI and base logic: modified BSD)
 - JS port: [@TadashiNakai](https://x.com/TadashiNakai)
 
 Just download `index.html` and open it in any modern browser. No installation, no server, no dependencies.
 
-The diff engine uses the Myers algorithm with `diff -d`-style cleanup, runs in a Web Worker so the UI stays responsive, and accepts up to 100,000 tokens per side before showing a confirmation dialog.
+The diff engine is a JavaScript port of the GNU diffutils algorithm (exact diff -d), runs in a Web Worker so the UI stays responsive, and accepts up to 100,000 tokens per side before showing a confirmation dialog.
