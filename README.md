@@ -33,9 +33,10 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 
 | | オリジナル (Perl/CGI) | JS版 |
 |---|---|---|
-| 差分エンジン | `diff -d` コマンド | Myersアルゴリズム + cleanup後処理（`diff -d` 相当） |
+| 差分エンジン | `diff -d` コマンド（行単位） | Myersアルゴリズム + cleanup後処理（`diff -d` 相当） |
+| 改行またぎの変更 | 行末・行頭に水色縦線で表示 | 同じ（v0.11で再現） |
 | 結果の保存 | サーバ保存・公開URL発行 | ローカルHTMLファイル保存 |
-| 入力上限 | 5MB | 片側40000トークン |
+| 入力上限 | 5MB | 100000トークン超で確認ダイアログ |
 | 動作環境 | Perl/CGI/diff/FIFO | モダンブラウザ単体 |
 
 
@@ -51,7 +52,8 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 --------
 
 - トークン分割規則: オリジナル `split_text` と同一の正規表現 (`[a-z]+ | <$> | &#?\w+; | .`)
-- 差分アルゴリズム: Myers diffアルゴリズム + cleanup後処理（`diff -d` 相当）。計算量 O((N+M)D)・メモリ O(N+M)（D は編集距離）
+- 差分アルゴリズム: Myers diff + cleanup後処理（`diff -d` 相当）。計算量 O((N+M)D)・メモリ O(N+M)（D は編集距離）
+- 改行をまたぐ変更: `delete [NL]` / `insert [NL]` の際に行末・行頭へ空emタグを挿入することで、オリジナルの水色縦線表示を再現
 - 差分計算はWeb Worker内で実行。メインスレッドはブロックされず、計算中も中断可能
 - HTML/CSS/JavaScript すべて単一ファイル内に展開
 
@@ -59,7 +61,33 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 バージョン履歴
 --------------
 
-- **difff-js-0.02.html** (現行版・`index.html` と同内容)
+- **difff-js-0.11.html** (現行版・`index.html` と同内容)
+    - 改行をまたぐ変更の行末・行頭に空emタグを挿入し、オリジナルの水色縦線表示を再現
+    - Web Worker のソースに `absorbKeepsAcrossNewlines` を含めるよう修正（計算が終わらなくなるバグを修正）
+    - Worker内エラー時のユーザー通知を追加
+- **difff-js-0.10.html**
+    - ブラウザ保存で混入した残骸（古い差分結果・`file://` URL等）をHTMLから除去
+- **difff-js-0.09.html**
+    - 改行をまたぐ変更（A複数行→B1行など）の行対応を本家と一致させるよう buildRows を全面改修（保留キュー方式）
+    - `absorbKeepsAcrossNewlines` を追加: 改行削除をまたいで保持されていた共通トークンを変更側に吸収
+- **difff-js-0.08.html**
+    - 「比較する」ボタンのカスタムスタイル（padding等）を削除し、本家のブラウザデフォルトに合わせた
+- **difff-js-0.07.html**
+    - 行末スペースの `<em>` 処理を本家と一致させる `mergeAdjacentEms` を改良（連続する em の結合と末尾 `&nbsp;` のem外化を2段階処理に）
+    - 差分出力HTMLがサンプル全13行で本家と完全一致
+- **difff-js-0.06.html**
+    - テキストエリアのフォントを本家に合わせる（monospace指定を削除）
+    - ヘッダ内 `&emsp;` を本家HTMLどおりに修正
+    - 新着情報リストの全角スペースを本家ソース準拠に
+- **difff-js-0.05.html**
+    - 本家のCSS（`table`/`td` グローバルスタイル、`width:95%; margin:20px`）を精査して再現
+    - body margin削除、テーブル幅・フォントサイズ等を本家と一致させた
+- **difff-js-0.04.html**
+    - 連続する変更トークン間のスペースが着色されない問題を修正（`mergeAdjacentEms` 追加）
+    - 改行数カウントを本家と一致させる（末尾改行を加算）
+- **difff-js-0.03.html**
+    - 入力上限をエラーストップから警告ダイアログに変更（100000トークン超で確認）
+- **difff-js-0.02.html**
     - 差分エンジンを LCS から Myers + cleanup（`diff -d` 相当）に変更
     - 入力上限を 5000 → 40000 トークンに拡張
     - 差分計算を Web Worker 化し、計算中も UI が応答するように
@@ -80,7 +108,7 @@ modified BSD license（オリジナルから継承）
 不具合報告
 ----------
 
-JS版固有の不具合は本リポジトリの Issues、もしくは [@TadashiNakai](https://x.com/TadashiNakai) (X) までお願いします。オリジナル difff の挙動に関するものは [meso-cacase/difff](https://github.com/meso-cacase/difff) 側にお問い合わせください。
+JS版固有の不具合は本リポジトリの Issues、もしくは [@TadashiNakai](https://x.com/TadashiNakai) (X) までお願いします。オリジナル difff の挙動に関するものは [meso-cacase/difff](https://github.com/meso-cacase/difff) までお問い合わせください。
 
 
 English summary
@@ -95,4 +123,4 @@ English summary
 
 Just download `index.html` and open it in any modern browser. No installation, no server, no dependencies.
 
-The diff engine uses the Myers algorithm with `diff -d`-style cleanup, runs in a Web Worker so the UI stays responsive, and accepts up to 40000 tokens per side.
+The diff engine uses the Myers algorithm with `diff -d`-style cleanup, runs in a Web Worker so the UI stays responsive, and accepts up to 100,000 tokens per side before showing a confirmation dialog.
