@@ -60,7 +60,9 @@ difff-js — difff《ﾃﾞｭﾌﾌ》 JS版
 バージョン履歴
 --------------
 
-- **difff-js-0.13.html** (現行版・`index.html` と同内容)
+- **difff-js-0.14.html** (現行版・`index.html` と同内容)
+    - pageTitleへの「JS版」の追加
+- **difff-js-0.13.html**
     - 差分エンジンを独自の近似処理から、GNU diffutils のアルゴリズムの移植版（完全な `diff -d`）へ差し替え
     - 差分結果のハイライト埋め込みロジックを本家 difff.pl と一致するよう改修
 - **difff-js-0.11.html**
